@@ -16,6 +16,7 @@ kotlin {
     jvmToolchain(21)
 }
 dependencies {
+    implementation(ktorLibs.ktor.server.rate.limit)
     implementation(ktorLibs.serialization.kotlinx.json)
     implementation(ktorLibs.server.auth)
     implementation(ktorLibs.server.auth.jwt)
@@ -28,7 +29,6 @@ dependencies {
     implementation(ktorLibs.server.requestValidation)
     implementation(ktorLibs.server.statusPages)
     implementation(ktorLibs.server.websockets)
-    implementation(ktorLibs.ktor.server.rate.limit)
     implementation(libs.exposed.core)
     implementation(libs.exposed.jdbc)
     implementation(libs.exposed.dao)
