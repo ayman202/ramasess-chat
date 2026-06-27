@@ -17,32 +17,43 @@ import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.slf4j.LoggerFactory
 
+
 object DatabaseConfig {
 
     private val log = LoggerFactory.getLogger("DatabaseConfig")
 
     fun init(config: ApplicationConfig) {
-        val jdbcUrl  = config.property("database.url").getString()
-        val user     = config.propertyOrNull("database.user")?.getString()
-        val password = config.propertyOrNull("database.password")?.getString()
-        val poolSize = config.propertyOrNull("database.maxPoolSize")?.getString()?.toInt() ?: 10
 
-        // ── HikariCP ──────────────────────────────────────────
+        // ── الخطوة 1: اقرأ الـ URL من الـ config ──────────────
+        val rawUrl = config.property("database.url").getString()
+
+        // ── الخطوة 2: حوّل الـ URL لصيغة JDBC ─────────────────
+        // Railway بيبعت:  postgresql://user:pass@host:port/db
+        // Exposed محتاج: jdbc:postgresql://user:pass@host:port/db
+        val jdbcUrl = when {
+            rawUrl.startsWith("jdbc:")         -> rawUrl
+            rawUrl.startsWith("postgresql://") -> "jdbc:$rawUrl"
+            rawUrl.startsWith("postgres://")   -> "jdbc:postgresql://" +
+                    rawUrl.removePrefix("postgres://")
+            else -> rawUrl
+        }
+
+        log.info("✅ Connecting to database...")
+
+        // ── الخطوة 3: إعداد HikariCP ───────────────────────────
         val hikari = HikariConfig().apply {
-            this.jdbcUrl         = jdbcUrl
-            this.username        = user
-            this.password        = password
-            this.maximumPoolSize = poolSize
-            this.isAutoCommit    = false
-            this.transactionIsolation = "TRANSACTION_REPEATABLE_READ"
-            driverClassName = "org.postgresql.Driver"
+            this.jdbcUrl     = jdbcUrl
+            driverClassName  = "org.postgresql.Driver"
+            maximumPoolSize  = 10
+            isAutoCommit     = false
+            transactionIsolation = "TRANSACTION_REPEATABLE_READ"
             validate()
         }
 
         Database.connect(HikariDataSource(hikari))
-        log.info("✅ Database connected → $jdbcUrl")
+        log.info("✅ Database connected!")
 
-        // ── إنشاء الجداول ─────────────────────────────────────
+        // ── الخطوة 4: إنشاء الجداول لو مش موجودة ──────────────
         transaction {
             SchemaUtils.createMissingTablesAndColumns(
                 UsersTable,
@@ -56,6 +67,6 @@ object DatabaseConfig {
                 ContactsTable
             )
         }
-        log.info("✅ Database tables ready")
+        log.info("✅ Database tables ready!")
     }
 }
