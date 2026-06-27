@@ -11,10 +11,10 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class ApiResponse<T>(
     val success: Boolean,
-    val message: String?         = null,
-    val data: T?                 = null,
-    val error: ApiError?         = null,
-    val pagination: Pagination?  = null
+    val message: String?        = null,
+    val data: T?                = null,
+    val error: ApiError?        = null,
+    val pagination: Pagination? = null
 )
 
 @Serializable
@@ -30,7 +30,6 @@ data class Pagination(
     val total: Long,
     val hasNext: Boolean
 )
-
 // ─────────────────────────────────────────────────────────────
 // Helper Builders
 // ─────────────────────────────────────────────────────────────

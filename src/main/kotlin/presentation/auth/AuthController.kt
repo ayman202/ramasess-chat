@@ -1,6 +1,5 @@
 package presentation.auth
 
-import core.utils.success
 import domain.usecase.LogoutUseCase
 import domain.usecase.RefreshTokenUseCase
 import domain.usecase.SendOtpUseCase
@@ -10,11 +9,9 @@ import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
-import presentation.auth.dto.AuthResponse
 import presentation.auth.dto.RefreshTokenRequest
 import presentation.auth.dto.SendOtpRequest
 import presentation.auth.dto.SetupProfileRequest
-import presentation.auth.dto.UserDto
 import presentation.auth.dto.VerifyOtpRequest
 
 class AuthController(
@@ -25,70 +22,86 @@ class AuthController(
     private val logoutUseCase: LogoutUseCase
 ) {
 
-    // POST /auth/send-otp
+    // ── sendOtp ───────────────────────────────────────────────────
     suspend fun sendOtp(call: ApplicationCall) {
-        val req = call.receive<SendOtpRequest>()
+        val req    = call.receive<SendOtpRequest>()
         val result = sendOtpUseCase(req.phone)
 
-        val data = buildMap<String, Any?> {
-            put("phone", result.phone)
-            put("message", "OTP sent successfully")
-            if (result.isMockMode) put("otp", result.otpCode)  // فقط في التطوير
-        }
-        call.respond(HttpStatusCode.OK, success(data))
+        // ✅ Map بدل ApiResponse<T> Generic
+        call.respond(HttpStatusCode.OK, mapOf(
+            "success" to true,
+            "data"    to mapOf(
+                "phone"      to result.phone,
+                "message"    to "OTP sent successfully",
+                "otp"        to if (result.isMockMode) result.otpCode else null
+            )
+        ))
     }
 
-    // POST /auth/verify-otp
+    // ── verifyOtp ─────────────────────────────────────────────────
     suspend fun verifyOtp(call: ApplicationCall) {
-        val req = call.receive<VerifyOtpRequest>()
+        val req            = call.receive<VerifyOtpRequest>()
         val (tokens, user) = verifyOtpUseCase(req.phone, req.otp)
 
-        val response = AuthResponse(
-            accessToken = tokens.accessToken,
-            refreshToken = tokens.refreshToken,
-            expiresIn = tokens.expiresIn,
-            isNewUser = user.name == null,
-            user = UserDto(
-                id = user.id,
-                phone = user.phone,
-                name = user.name,
-                bio = user.bio,
-                profileImageUrl = user.profileImageUrl,
-                isVerified = user.isVerified
+        call.respond(HttpStatusCode.OK, mapOf(
+            "success" to true,
+            "data"    to mapOf(
+                "accessToken"  to tokens.accessToken,
+                "refreshToken" to tokens.refreshToken,
+                "expiresIn"    to tokens.expiresIn,
+                "isNewUser"    to (user.name == null),
+                "user"         to mapOf(
+                    "id"              to user.id,
+                    "phone"           to user.phone,
+                    "name"            to user.name,
+                    "bio"             to user.bio,
+                    "profileImageUrl" to user.profileImageUrl,
+                    "isVerified"      to user.isVerified
+                )
             )
-        )
-        call.respond(HttpStatusCode.OK, success(response))
+        ))
     }
 
-    // POST /auth/refresh-token
+    // ── refreshToken ──────────────────────────────────────────────
     suspend fun refreshToken(call: ApplicationCall) {
         val req    = call.receive<RefreshTokenRequest>()
         val tokens = refreshTokenUseCase(req.refreshToken)
-        call.respond(HttpStatusCode.OK, success(mapOf(
-            "accessToken"  to tokens.accessToken,
-            "refreshToken" to tokens.refreshToken,
-            "expiresIn"    to tokens.expiresIn
-        )))
+
+        call.respond(HttpStatusCode.OK, mapOf(
+            "success" to true,
+            "data"    to mapOf(
+                "accessToken"  to tokens.accessToken,
+                "refreshToken" to tokens.refreshToken,
+                "expiresIn"    to tokens.expiresIn
+            )
+        ))
     }
 
-    // POST /auth/setup-profile  (محمية بـ JWT)
+    // ── setupProfile ──────────────────────────────────────────────
     suspend fun setupProfile(call: ApplicationCall, userId: String) {
         val req  = call.receive<SetupProfileRequest>()
         val user = setupProfileUseCase(userId, req.name, req.bio, req.profileImageUrl)
-        call.respond(HttpStatusCode.OK, success(
-            UserDto(
-                id = user.id,
-                phone = user.phone,
-                name = user.name,
-                bio = user.bio,
-                profileImageUrl = user.profileImageUrl,
-                isVerified = user.isVerified
-            ), "Profile setup complete"))
+
+        call.respond(HttpStatusCode.OK, mapOf(
+            "success" to true,
+            "data"    to mapOf(
+                "id"              to user.id,
+                "phone"           to user.phone,
+                "name"            to user.name,
+                "bio"             to user.bio,
+                "profileImageUrl" to user.profileImageUrl,
+                "isVerified"      to user.isVerified
+            )
+        ))
     }
 
-    // POST /auth/logout
+    // ── logout ────────────────────────────────────────────────────
     suspend fun logout(call: ApplicationCall, userId: String) {
         logoutUseCase(userId)
-        call.respond(HttpStatusCode.OK, success(mapOf("message" to "Logged out successfully")))
+        call.respond(HttpStatusCode.OK, mapOf(
+            "success" to true,
+            "data"    to mapOf("message" to "Logged out successfully")
+        ))
     }
+
 }
