@@ -22,13 +22,8 @@ fun Application.configureRouting() {
 
         // ── Health Check  ──────────────────────────────────
         get("/health") {
-            call.respond(HttpStatusCode.OK, mapOf(
-                "status"  to "UP",
-                "service" to "chat-backend",
-                "version" to "1.0.0"
-            ))
+            call.respond(HttpStatusCode.OK, mapOf("status" to "UP"))
         }
-
         // ── API v1 ─────────────────────────────────────────
         route("/api/v1") {
 
