@@ -16,6 +16,7 @@ import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.slf4j.LoggerFactory
+import java.net.URI
 
 
 object DatabaseConfig {
@@ -24,36 +25,44 @@ object DatabaseConfig {
 
     fun init(config: ApplicationConfig) {
 
-        // ── الخطوة 1: اقرأ الـ URL من الـ config ──────────────
         val rawUrl = config.property("database.url").getString()
+        log.info("Raw DB URL received: ${rawUrl.take(30)}...")
 
-        // ── الخطوة 2: حوّل الـ URL لصيغة JDBC ─────────────────
-        // Railway بيبعت:  postgresql://user:pass@host:port/db
-        // Exposed محتاج: jdbc:postgresql://user:pass@host:port/db
-        val jdbcUrl = when {
-            rawUrl.startsWith("jdbc:")         -> rawUrl
-            rawUrl.startsWith("postgresql://") -> "jdbc:$rawUrl"
-            rawUrl.startsWith("postgres://")   -> "jdbc:postgresql://" +
-                    rawUrl.removePrefix("postgres://")
-            else -> rawUrl
+        val hikari = HikariConfig()
+        hikari.driverClassName = "org.postgresql.Driver"
+
+        // ── Railway بيبعت: postgresql://user:pass@host:port/db ──
+        // ── لازم نقسّمها يدوياً ───────────────────────────────────
+        if (rawUrl.startsWith("postgresql://") || rawUrl.startsWith("postgres://")) {
+
+            val uri = URI(rawUrl)
+
+            val host     = uri.host
+            val port     = if (uri.port == -1) 5432 else uri.port
+            val dbName   = uri.path.removePrefix("/")
+            val userInfo = uri.userInfo?.split(":") ?: emptyList()
+            val user     = userInfo.getOrNull(0) ?: ""
+            val password = userInfo.getOrNull(1) ?: ""
+
+            hikari.jdbcUrl  = "jdbc:postgresql://$host:$port/$dbName"
+            hikari.username = user
+            hikari.password = password
+
+            log.info("✅ Parsed JDBC URL: jdbc:postgresql://$host:$port/$dbName")
+
+        } else {
+            // لو بالفعل jdbc:postgresql://... استخدمه مباشرة
+            hikari.jdbcUrl = rawUrl
         }
 
-        log.info("✅ Connecting to database...")
-
-        // ── الخطوة 3: إعداد HikariCP ───────────────────────────
-        val hikari = HikariConfig().apply {
-            this.jdbcUrl     = jdbcUrl
-            driverClassName  = "org.postgresql.Driver"
-            maximumPoolSize  = 10
-            isAutoCommit     = false
-            transactionIsolation = "TRANSACTION_REPEATABLE_READ"
-            validate()
-        }
+        hikari.maximumPoolSize   = 10
+        hikari.isAutoCommit      = false
+        hikari.transactionIsolation = "TRANSACTION_REPEATABLE_READ"
+        hikari.validate()
 
         Database.connect(HikariDataSource(hikari))
         log.info("✅ Database connected!")
 
-        // ── الخطوة 4: إنشاء الجداول لو مش موجودة ──────────────
         transaction {
             SchemaUtils.createMissingTablesAndColumns(
                 UsersTable,
@@ -67,6 +76,6 @@ object DatabaseConfig {
                 ContactsTable
             )
         }
-        log.info("✅ Database tables ready!")
+        log.info("✅ Tables ready!")
     }
 }
