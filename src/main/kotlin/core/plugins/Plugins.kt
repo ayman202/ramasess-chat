@@ -6,7 +6,7 @@ import core.utils.ConflictException
 import core.utils.ForbiddenException
 import core.utils.NotFoundException
 import core.utils.UnauthorizedException
-import core.utils.failure
+import core.utils.errorResponse
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
@@ -88,7 +88,7 @@ fun Application.configureSecurity() {
             challenge { _, _ ->
                 call.respond(
                     HttpStatusCode.Unauthorized,
-                    failure("UNAUTHORIZED", "Token is invalid or expired")
+                    errorResponse("UNAUTHORIZED", "Token is invalid or expired")
                 )
             }
         }
