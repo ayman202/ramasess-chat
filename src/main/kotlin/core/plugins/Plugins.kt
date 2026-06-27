@@ -117,38 +117,72 @@ fun Application.configureRateLimiting() {
 
 fun Application.configureStatusPages() {
     install(StatusPages) {
+
         exception<NotFoundException> { call, cause ->
-            call.respond(HttpStatusCode.NotFound,
-                failure("NOT_FOUND", cause.message))
+            call.respond(
+                HttpStatusCode.NotFound,
+                mapOf("success" to false, "error" to mapOf(
+                    "code" to "NOT_FOUND", "details" to cause.message
+                ))
+            )
         }
         exception<UnauthorizedException> { call, cause ->
-            call.respond(HttpStatusCode.Unauthorized,
-                failure("UNAUTHORIZED", cause.message))
+            call.respond(
+                HttpStatusCode.Unauthorized,
+                mapOf("success" to false, "error" to mapOf(
+                    "code" to "UNAUTHORIZED", "details" to cause.message
+                ))
+            )
         }
         exception<ForbiddenException> { call, cause ->
-            call.respond(HttpStatusCode.Forbidden,
-                failure("FORBIDDEN", cause.message))
+            call.respond(
+                HttpStatusCode.Forbidden,
+                mapOf("success" to false, "error" to mapOf(
+                    "code" to "FORBIDDEN", "details" to cause.message
+                ))
+            )
         }
         exception<BadRequestException> { call, cause ->
-            call.respond(HttpStatusCode.BadRequest,
-                failure("BAD_REQUEST", cause.message))
+            call.respond(
+                HttpStatusCode.BadRequest,
+                mapOf("success" to false, "error" to mapOf(
+                    "code" to "BAD_REQUEST", "details" to cause.message
+                ))
+            )
         }
         exception<ConflictException> { call, cause ->
-            call.respond(HttpStatusCode.Conflict,
-                failure("CONFLICT", cause.message))
+            call.respond(
+                HttpStatusCode.Conflict,
+                mapOf("success" to false, "error" to mapOf(
+                    "code" to "CONFLICT", "details" to cause.message
+                ))
+            )
         }
         exception<Exception> { call, cause ->
             call.application.log.error("Unhandled exception", cause)
-            call.respond(HttpStatusCode.InternalServerError,
-                failure("INTERNAL_ERROR", "An unexpected error occurred"))
+            call.respond(
+                HttpStatusCode.InternalServerError,
+                mapOf("success" to false, "error" to mapOf(
+                    "code" to "INTERNAL_ERROR",
+                    "details" to (cause.message ?: "An unexpected error occurred")
+                ))
+            )
         }
         status(HttpStatusCode.NotFound) { call, _ ->
-            call.respond(HttpStatusCode.NotFound,
-                failure("NOT_FOUND", "Route not found"))
+            call.respond(
+                HttpStatusCode.NotFound,
+                mapOf("success" to false, "error" to mapOf(
+                    "code" to "NOT_FOUND", "details" to "Route not found"
+                ))
+            )
         }
         status(HttpStatusCode.MethodNotAllowed) { call, _ ->
-            call.respond(HttpStatusCode.MethodNotAllowed,
-                failure("METHOD_NOT_ALLOWED", "Method not allowed"))
+            call.respond(
+                HttpStatusCode.MethodNotAllowed,
+                mapOf("success" to false, "error" to mapOf(
+                    "code" to "METHOD_NOT_ALLOWED", "details" to "Method not allowed"
+                ))
+            )
         }
     }
 }
