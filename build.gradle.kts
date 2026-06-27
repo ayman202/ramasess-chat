@@ -36,6 +36,7 @@ dependencies {
     implementation(libs.exposed.java.time)
     implementation(libs.logback.classic)
     implementation(libs.postgresql)
+    implementation(libs.commons.logging)
 
     implementation(libs.koin.ktor)
     implementation(libs.koin.logger)
