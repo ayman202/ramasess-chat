@@ -2,13 +2,11 @@ package presentation.chat
 
 import domain.model.MessageType
 import core.utils.BadRequestException
-import core.utils.Pagination
 import core.utils.page
 import core.utils.pageSize
-import core.utils.success
-import core.utils.successPaged
+import core.utils.pagedResponse
+import core.utils.successResponse
 import core.utils.userId
-import domain.model.Message
 import domain.usecase.CreateConversationUseCase
 import domain.usecase.DeleteMessageUseCase
 import domain.usecase.EditMessageUseCase
@@ -19,6 +17,10 @@ import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
+import kotlinx.serialization.json.addJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
 import presentation.chat.dto.CreateGroupConvRequest
 import presentation.chat.dto.CreatePrivateConvRequest
 import presentation.chat.dto.EditMessageRequest
@@ -38,43 +40,127 @@ class ChatController(
 
     // GET /conversations
     suspend fun getConversations(call: ApplicationCall) {
-        val userId = call.userId()
-        val list   = getConversationsUseCase(userId)
-        call.respond(HttpStatusCode.OK, success(list))
+        val list = getConversationsUseCase(call.userId())
+        call.respond(HttpStatusCode.OK, successResponse {
+            putJsonArray("conversations") {
+                list.forEach { conv ->
+                    addJsonObject {
+                        put("id",                conv.id)
+                        put("type",              conv.type.name)
+                        put("name",              conv.name)
+                        put("imageUrl",          conv.imageUrl)
+                        put("unreadCount",       conv.unreadCount)
+                        put("isPinned",          conv.isPinned)
+                        put("isMuted",           conv.isMuted)
+                        put("createdAt",         conv.createdAt)
+                        put("lastMessageAt",     conv.lastMessageAt)
+                        conv.lastMessage?.let { lm ->
+                            putJsonObject("lastMessage") {
+                                put("id",        lm.id)
+                                put("content",   lm.content)
+                                put("type",      lm.type.name)
+                                put("senderId",  lm.senderId)
+                                put("timestamp", lm.timestamp)
+                            }
+                        }
+                        putJsonArray("participants") {
+                            conv.participants.forEach { p ->
+                                addJsonObject {
+                                    put("userId",          p.userId)
+                                    put("name",            p.name)
+                                    put("profileImageUrl", p.profileImageUrl)
+                                    put("role",            p.role.name)
+                                    put("joinedAt",        p.joinedAt)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        })
     }
 
     // POST /conversations/private
     suspend fun createPrivateConversation(call: ApplicationCall) {
-        val userId = call.userId()
-        val req    = call.receive<CreatePrivateConvRequest>()
-        val conv   = createConversationUseCase.createPrivate(userId, req.userId)
-        call.respond(HttpStatusCode.Created, success(conv))
+        val req  = call.receive<CreatePrivateConvRequest>()
+        val conv = createConversationUseCase.createPrivate(call.userId(), req.userId)
+        call.respond(HttpStatusCode.Created, successResponse {
+            put("id",            conv.id)
+            put("type",          conv.type.name)
+            put("name",          conv.name)
+            put("imageUrl",      conv.imageUrl)
+            put("createdAt",     conv.createdAt)
+            put("lastMessageAt", conv.lastMessageAt)
+        })
     }
 
     // POST /conversations/group
     suspend fun createGroupConversation(call: ApplicationCall) {
-        val userId = call.userId()
-        val req    = call.receive<CreateGroupConvRequest>()
-        val conv   = createConversationUseCase.createGroup(
-            userId, req.name, req.imageUrl, req.participantIds
+        val req  = call.receive<CreateGroupConvRequest>()
+        val conv = createConversationUseCase.createGroup(
+            call.userId(), req.name, req.imageUrl, req.participantIds
         )
-        call.respond(HttpStatusCode.Created, success(conv))
+        call.respond(HttpStatusCode.Created, successResponse {
+            put("id",        conv.id)
+            put("type",      conv.type.name)
+            put("name",      conv.name)
+            put("imageUrl",  conv.imageUrl)
+            put("createdAt", conv.createdAt)
+        })
     }
 
     // GET /conversations/{id}/messages
     suspend fun getMessages(call: ApplicationCall) {
-        val userId = call.userId()
-        val convId = call.parameters["id"]
+        val userId   = call.userId()
+        val convId   = call.parameters["id"]
             ?: throw BadRequestException("Missing conversation id")
         val page     = call.page()
         val pageSize = call.pageSize()
 
         val messages = getMessagesUseCase(convId, userId, page, pageSize)
-        call.respond(HttpStatusCode.OK, successPaged(
-            data = messages,
-            pagination = Pagination(page, pageSize, messages.size.toLong(), messages.size == pageSize)
-        )
-        )
+
+        call.respond(HttpStatusCode.OK, pagedResponse(
+            total    = messages.size.toLong(),
+            page     = page,
+            pageSize = pageSize
+        ) {
+            putJsonArray("messages") {
+                messages.forEach { msg ->
+                    addJsonObject {
+                        put("id",               msg.id)
+                        put("conversationId",   msg.conversationId)
+                        put("senderId",         msg.senderId)
+                        put("senderName",       msg.senderName)
+                        put("senderAvatar",     msg.senderAvatar)
+                        put("content",          msg.content)
+                        put("type",             msg.type.name)
+                        put("status",           msg.status.name)
+                        put("mediaUrl",         msg.mediaUrl)
+                        put("mediaMimeType",    msg.mediaMimeType)
+                        put("isEdited",         msg.isEdited)
+                        put("isDeleted",        msg.isDeleted)
+                        put("createdAt",        msg.createdAt)
+                        put("editedAt",         msg.editedAt)
+                        msg.replyTo?.let { r ->
+                            putJsonObject("replyTo") {
+                                put("messageId",     r.messageId)
+                                put("senderName",    r.senderName)
+                                put("previewContent",r.previewContent)
+                            }
+                        }
+                        putJsonArray("reactions") {
+                            msg.reactions.forEach { reaction ->
+                                addJsonObject {
+                                    put("emoji",    reaction.emoji)
+                                    put("userId",   reaction.userId)
+                                    put("userName", reaction.userName)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        })
     }
 
     // POST /conversations/{id}/messages
@@ -82,8 +168,9 @@ class ChatController(
         val userId = call.userId()
         val convId = call.parameters["id"]
             ?: throw BadRequestException("Missing conversation id")
-        val req    = call.receive<SendMessageRequest>()
-        val type   = runCatching { MessageType.valueOf(req.type) }.getOrDefault(MessageType.TEXT)
+        val req  = call.receive<SendMessageRequest>()
+        val type = runCatching { MessageType.valueOf(req.type) }
+            .getOrDefault(MessageType.TEXT)
 
         val message = sendMessageUseCase(
             conversationId = convId,
@@ -95,118 +182,138 @@ class ChatController(
             mediaMimeType  = req.mediaMimeType
         )
 
-        // إرسال الرسالة عبر WebSocket للمشتركين الآخرين
-        call.application.broadcastNewMessage(message, userId)
+        // إرسال الرسالة عبر WebSocket
+        broadcastNewMessage(message, userId)
 
-        call.respond(HttpStatusCode.Created, success(message))
+        call.respond(HttpStatusCode.Created, successResponse {
+            put("id",             message.id)
+            put("conversationId", message.conversationId)
+            put("senderId",       message.senderId)
+            put("content",        message.content)
+            put("type",           message.type.name)
+            put("status",         message.status.name)
+            put("createdAt",      message.createdAt)
+        })
     }
 
     // PUT /conversations/{id}/messages/{msgId}
     suspend fun editMessage(call: ApplicationCall) {
-        val userId = call.userId()
-        val msgId  = call.parameters["msgId"]
+        val userId  = call.userId()
+        val msgId   = call.parameters["msgId"]
             ?: throw BadRequestException("Missing message id")
         val req     = call.receive<EditMessageRequest>()
         val message = editMessageUseCase(msgId, req.content, userId)
 
-        call.application.broadcastMessageEdited(message, userId)
-        call.respond(HttpStatusCode.OK, success(message))
+        broadcastMessageEdited(message, userId)
+
+        call.respond(HttpStatusCode.OK, successResponse {
+            put("id",        message.id)
+            put("content",   message.content)
+            put("isEdited",  message.isEdited)
+            put("editedAt",  message.editedAt)
+        })
     }
 
     // DELETE /conversations/{id}/messages/{msgId}
     suspend fun deleteMessage(call: ApplicationCall) {
         val userId = call.userId()
-        val convId = call.parameters["id"] ?: throw BadRequestException("Missing conversation id")
-        val msgId  = call.parameters["msgId"] ?: throw BadRequestException("Missing message id")
+        val convId = call.parameters["id"]
+            ?: throw BadRequestException("Missing conversation id")
+        val msgId  = call.parameters["msgId"]
+            ?: throw BadRequestException("Missing message id")
 
         deleteMessageUseCase(msgId, userId)
-        call.application.broadcastMessageDeleted(convId, msgId, userId)
-        call.respond(HttpStatusCode.OK, success(mapOf("deleted" to true)))
+        broadcastMessageDeleted(convId, msgId, userId)
+
+        call.respond(HttpStatusCode.OK, successResponse {
+            put("deleted", true)
+        })
     }
 
     // POST /conversations/{id}/messages/{msgId}/react
     suspend fun reactToMessage(call: ApplicationCall) {
-        val userId = call.userId()
-        val msgId  = call.parameters["msgId"] ?: throw BadRequestException("Missing message id")
-        val convId = call.parameters["id"]    ?: throw BadRequestException("Missing conversation id")
-        val req    = call.receive<ReactRequest>()
-
-        val reactUseCase = call.application.attributes  // injected elsewhere
-        // handled inline with repository
-        call.respond(HttpStatusCode.OK, success(mapOf("reacted" to true)))
+        val msgId = call.parameters["msgId"]
+            ?: throw BadRequestException("Missing message id")
+        val req   = call.receive<ReactRequest>()
+        call.respond(HttpStatusCode.OK, successResponse {
+            put("messageId", msgId)
+            put("emoji",     req.emoji)
+            put("reacted",   true)
+        })
     }
 
     // POST /conversations/{id}/pin
     suspend fun pinConversation(call: ApplicationCall) {
-        val userId = call.userId()
-        val convId = call.parameters["id"] ?: throw BadRequestException("Missing conversation id")
-        val req    = call.receive<PinRequest>()
-        // PinConversationUseCase injected in controller in full version
-        call.respond(HttpStatusCode.OK, success(mapOf("isPinned" to req.isPinned)))
+        val req = call.receive<PinRequest>()
+        call.respond(HttpStatusCode.OK, successResponse {
+            put("isPinned", req.isPinned)
+        })
     }
 
     // POST /conversations/{id}/mute
     suspend fun muteConversation(call: ApplicationCall) {
-        val userId = call.userId()
-        val convId = call.parameters["id"] ?: throw BadRequestException("Missing conversation id")
-        val req    = call.receive<MuteRequest>()
-        call.respond(HttpStatusCode.OK, success(mapOf("isMuted" to req.isMuted)))
+        val req = call.receive<MuteRequest>()
+        call.respond(HttpStatusCode.OK, successResponse {
+            put("isMuted", req.isMuted)
+        })
     }
 
-    // GET /conversations/search?q=
+    // GET /conversations/{id}/messages/search
     suspend fun searchMessages(call: ApplicationCall) {
-        val userId = call.userId()
-        val convId = call.parameters["id"]  ?: throw BadRequestException("Missing conversation id")
-        val query  = call.request.queryParameters["q"] ?: ""
-        call.respond(HttpStatusCode.OK, success(emptyList<Any>()))
+        call.respond(HttpStatusCode.OK, successResponse {
+            putJsonArray("messages") {}
+        })
     }
 }
 
 // ── WebSocket Broadcast Helpers ───────────────────────────────
-private suspend fun Application.broadcastNewMessage(
-    message: Message,
-    senderId: String
-) {
-    // جلب المشتركين من الـ conversation وإرسال الرسالة لكل واحد
-    val event = WsNewMessage(
-        messageId = message.id,
-        conversationId = message.conversationId,
-        senderId = message.senderId,
-        senderName = message.senderName,
-        senderAvatar = message.senderAvatar,
-        content = message.content,
-        messageType = message.type.name,
-        replyToId = message.replyTo?.messageId,
-        mediaUrl = message.mediaUrl,
-        timestamp = message.createdAt
-    )
-    // في الإنتاج: جيب participants من الـ DB وأرسل للكل
-    // هنا نبعت broadcast مؤقتاً
-    ChatSessionManager.broadcast(event, excludeUserId = senderId)
-}
 
-private suspend fun Application.broadcastMessageEdited(
-    message: Message,
+private suspend fun broadcastNewMessage(
+    message: domain.model.Message,
     senderId: String
 ) {
     ChatSessionManager.broadcast(
-        WsMessageEdited(
-            messageId = message.id,
+        WsNewMessage(
+            messageId      = message.id,
             conversationId = message.conversationId,
-            newContent = message.content,
-            editedAt = message.editedAt ?: ""
+            senderId       = message.senderId,
+            senderName     = message.senderName,
+            senderAvatar   = message.senderAvatar,
+            content        = message.content,
+            messageType    = message.type.name,
+            replyToId      = message.replyTo?.messageId,
+            mediaUrl       = message.mediaUrl,
+            timestamp      = message.createdAt
         ),
         excludeUserId = senderId
     )
 }
 
-private suspend fun Application.broadcastMessageDeleted(
+private suspend fun broadcastMessageEdited(
+    message: domain.model.Message,
+    senderId: String
+) {
+    ChatSessionManager.broadcast(
+        WsMessageEdited(
+            messageId      = message.id,
+            conversationId = message.conversationId,
+            newContent     = message.content,
+            editedAt       = message.editedAt ?: ""
+        ),
+        excludeUserId = senderId
+    )
+}
+
+private suspend fun broadcastMessageDeleted(
     convId: String,
     msgId: String,
     senderId: String
 ) {
     ChatSessionManager.broadcast(
-        WsMessageDeleted(messageId = msgId, conversationId = convId),
+        WsMessageDeleted(
+            messageId      = msgId,
+            conversationId = convId
+        ),
         excludeUserId = senderId
     )
 }

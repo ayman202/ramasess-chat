@@ -4,6 +4,11 @@ import io.ktor.server.application.*
 import io.ktor.server.auth.jwt.*
 import io.ktor.server.auth.principal
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonObjectBuilder
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 
 // ─────────────────────────────────────────────────────────────
 // Response Wrappers
@@ -33,20 +38,43 @@ data class Pagination(
 // ─────────────────────────────────────────────────────────────
 // Helper Builders
 // ─────────────────────────────────────────────────────────────
-fun <T> success(data: T, message: String? = null) =
-    ApiResponse(success = true, message = message, data = data)
+fun successResponse(block: JsonObjectBuilder.() -> Unit): JsonObject {
+    return buildJsonObject {
+        put("success", true)
+        putJsonObject("data", block)
+    }
+}
 
-fun <T> successPaged(data: T, pagination: Pagination, message: String? = null) =
-    ApiResponse(success = true, message = message, data = data, pagination = pagination)
+fun errorResponse(code: String, details: String?): JsonObject {
+    return buildJsonObject {
+        put("success", false)
+        putJsonObject("error") {
+            put("code", code)
+            put("details", details)
+        }
+    }
+}
 
-fun failure(code: String, details: String? = null) =
-    ApiResponse<Nothing>(success = false, error = ApiError(code, details))
+fun pagedResponse(
+    total: Long,
+    page: Int,
+    pageSize: Int,
+    block: JsonObjectBuilder.() -> Unit
+): JsonObject {
+    return buildJsonObject {
+        put("success", true)
+        putJsonObject("data", block)
+        putJsonObject("pagination") {
+            put("page", page)
+            put("pageSize", pageSize)
+            put("total", total)
+            put("hasNext", total > page * pageSize)
+        }
+    }
+}
 
-// ─────────────────────────────────────────────────────────────
-// ApplicationCall Extensions
-// ─────────────────────────────────────────────────────────────
+// ── Extensions ────────────────────────────────────────────────
 
-// ── الحصول على userId من الـ JWT ────────────────────────────
 fun ApplicationCall.userId(): String =
     principal<JWTPrincipal>()
         ?.payload
@@ -54,13 +82,14 @@ fun ApplicationCall.userId(): String =
         ?.asString()
         ?: throw UnauthorizedException("Missing userId in token")
 
-// ── Pagination helpers ────────────────────────────────────────
-fun ApplicationCall.page()     = request.queryParameters["page"]?.toIntOrNull()?.coerceAtLeast(1) ?: 1
-fun ApplicationCall.pageSize() = request.queryParameters["pageSize"]?.toIntOrNull()?.coerceIn(1, 100) ?: 30
+fun ApplicationCall.page() =
+    request.queryParameters["page"]?.toIntOrNull()?.coerceAtLeast(1) ?: 1
 
-// ─────────────────────────────────────────────────────────────
-// Custom Exceptions
-// ─────────────────────────────────────────────────────────────
+fun ApplicationCall.pageSize() =
+    request.queryParameters["pageSize"]?.toIntOrNull()?.coerceIn(1, 100) ?: 30
+
+// ── Custom Exceptions ─────────────────────────────────────────
+
 class NotFoundException(message: String)     : Exception(message)
 class UnauthorizedException(message: String) : Exception(message)
 class BadRequestException(message: String)   : Exception(message)
