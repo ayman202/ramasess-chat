@@ -22,6 +22,9 @@ import io.ktor.server.request.path
 import io.ktor.server.response.*
 import io.ktor.server.websocket.*
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 import org.koin.ktor.ext.inject
 import org.slf4j.event.Level
 import kotlin.time.Duration.Companion.minutes
@@ -119,70 +122,77 @@ fun Application.configureStatusPages() {
     install(StatusPages) {
 
         exception<NotFoundException> { call, cause ->
-            call.respond(
-                HttpStatusCode.NotFound,
-                mapOf("success" to false, "error" to mapOf(
-                    "code" to "NOT_FOUND", "details" to cause.message
-                ))
-            )
+            call.respond(HttpStatusCode.NotFound, buildJsonObject {
+                put("success", false)
+                putJsonObject("error") {
+                    put("code",    "NOT_FOUND")
+                    put("details", cause.message)
+                }
+            })
         }
         exception<UnauthorizedException> { call, cause ->
-            call.respond(
-                HttpStatusCode.Unauthorized,
-                mapOf("success" to false, "error" to mapOf(
-                    "code" to "UNAUTHORIZED", "details" to cause.message
-                ))
-            )
+            call.respond(HttpStatusCode.Unauthorized, buildJsonObject {
+                put("success", false)
+                putJsonObject("error") {
+                    put("code",    "UNAUTHORIZED")
+                    put("details", cause.message)
+                }
+            })
         }
         exception<ForbiddenException> { call, cause ->
-            call.respond(
-                HttpStatusCode.Forbidden,
-                mapOf("success" to false, "error" to mapOf(
-                    "code" to "FORBIDDEN", "details" to cause.message
-                ))
-            )
+            call.respond(HttpStatusCode.Forbidden, buildJsonObject {
+                put("success", false)
+                putJsonObject("error") {
+                    put("code",    "FORBIDDEN")
+                    put("details", cause.message)
+                }
+            })
         }
         exception<BadRequestException> { call, cause ->
-            call.respond(
-                HttpStatusCode.BadRequest,
-                mapOf("success" to false, "error" to mapOf(
-                    "code" to "BAD_REQUEST", "details" to cause.message
-                ))
-            )
+            call.respond(HttpStatusCode.BadRequest, buildJsonObject {
+                put("success", false)
+                putJsonObject("error") {
+                    put("code",    "BAD_REQUEST")
+                    put("details", cause.message)
+                }
+            })
         }
         exception<ConflictException> { call, cause ->
-            call.respond(
-                HttpStatusCode.Conflict,
-                mapOf("success" to false, "error" to mapOf(
-                    "code" to "CONFLICT", "details" to cause.message
-                ))
-            )
+            call.respond(HttpStatusCode.Conflict, buildJsonObject {
+                put("success", false)
+                putJsonObject("error") {
+                    put("code",    "CONFLICT")
+                    put("details", cause.message)
+                }
+            })
         }
         exception<Exception> { call, cause ->
             call.application.log.error("Unhandled exception", cause)
-            call.respond(
-                HttpStatusCode.InternalServerError,
-                mapOf("success" to false, "error" to mapOf(
-                    "code" to "INTERNAL_ERROR",
-                    "details" to (cause.message ?: "An unexpected error occurred")
-                ))
-            )
+            call.respond(HttpStatusCode.InternalServerError, buildJsonObject {
+                put("success", false)
+                putJsonObject("error") {
+                    put("code",    "INTERNAL_ERROR")
+                    put("details", cause.message ?: "An unexpected error occurred")
+                }
+            })
         }
         status(HttpStatusCode.NotFound) { call, _ ->
-            call.respond(
-                HttpStatusCode.NotFound,
-                mapOf("success" to false, "error" to mapOf(
-                    "code" to "NOT_FOUND", "details" to "Route not found"
-                ))
-            )
+            call.respond(HttpStatusCode.NotFound, buildJsonObject {
+                put("success", false)
+                putJsonObject("error") {
+                    put("code",    "NOT_FOUND")
+                    put("details", "Route not found")
+                }
+            })
         }
         status(HttpStatusCode.MethodNotAllowed) { call, _ ->
-            call.respond(
-                HttpStatusCode.MethodNotAllowed,
-                mapOf("success" to false, "error" to mapOf(
-                    "code" to "METHOD_NOT_ALLOWED", "details" to "Method not allowed"
-                ))
-            )
+            call.respond(HttpStatusCode.MethodNotAllowed, buildJsonObject {
+                put("success", false)
+                putJsonObject("error") {
+                    put("code",    "METHOD_NOT_ALLOWED")
+                    put("details", "Method not allowed")
+                }
+            })
         }
     }
 }
